@@ -27,17 +27,42 @@ jobs:
 
       - name: Extract Android project
         run: |
+          mkdir -p project
           unzip -q attendance_payroll_android_project.zip -d project
-          cd project/attendance_payroll_android
-          echo "PROJECT_DIR=$PWD" >> $GITHUB_ENV
+
+          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/project" -name gradlew -type f -print -quit | sed 's#/gradlew$##')
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: لم يتم العثور على ملف gradlew"
+            find "$GITHUB_WORKSPACE/project" -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "تم العثور على المشروع في: $PROJECT_DIR"
 
       - name: Build APK
         run: |
           cd "$PROJECT_DIR"
-          gradle :app:assembleDebug --stacktrace
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare APK
+        run: |
+          mkdir -p output
+          APK=$(find "$PROJECT_DIR" -type f -path "*/build/outputs/apk/debug/*.apk" -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: لم يتم العثور على APK"
+            find "$PROJECT_DIR" -type f -name "*.apk"
+            exit 1
+          fi
+
+          cp "$APK" output/app-debug.apk
+          echo "APK: $APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: attendance-payroll-apk
-          path: project/attendance_payroll_android/app/build/outputs/apk/debug/app-debug.apk
+          path: output/app-debug.apk
