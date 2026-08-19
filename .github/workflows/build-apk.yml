@@ -26,30 +26,37 @@ jobs:
           gradle-version: '8.10.2'
 
       - name: Extract Android project
+        shell: bash
         run: |
+          rm -rf project
           mkdir -p project
+
           unzip -q attendance_payroll_android_project.zip -d project
 
-          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/project" -name gradlew -type f -print -quit | sed 's#/gradlew$##')
+          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/project" -type f -name "settings.gradle*" -print -quit | xargs -r dirname)
 
           if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: لم يتم العثور على ملف gradlew"
-            find "$GITHUB_WORKSPACE/project" -maxdepth 4 -type f | head -100
+            echo "ERROR: لم يتم العثور على settings.gradle أو settings.gradle.kts"
+            find "$GITHUB_WORKSPACE/project" -maxdepth 5 -type f | head -100
             exit 1
           fi
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "تم العثور على المشروع في: $PROJECT_DIR"
+          echo "تم العثور على مشروع Gradle:"
+          echo "$PROJECT_DIR"
 
       - name: Build APK
+        shell: bash
         run: |
           cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+
+          gradle :app:assembleDebug --stacktrace
 
       - name: Prepare APK
+        shell: bash
         run: |
           mkdir -p output
+
           APK=$(find "$PROJECT_DIR" -type f -path "*/build/outputs/apk/debug/*.apk" -print -quit)
 
           if [ -z "$APK" ]; then
@@ -59,7 +66,9 @@ jobs:
           fi
 
           cp "$APK" output/app-debug.apk
-          echo "APK: $APK"
+
+          echo "APK جاهز:"
+          ls -lh output/app-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
